@@ -56,18 +56,14 @@ thời gian ảnh và nhập tên điểm bán, hệ thống mới hoàn tất v
 không kiểm tra tọa độ GPS hoặc tính đúng giờ/muộn, trạng thái giờ giấc được để `NOT_EVALUATED`. Nếu OCR hoàn tất trước khi nhập tên, kết quả sẽ
 được gửi sau khi nhập tên; nếu nhập tên trước thì kết quả được gửi khi OCR hoàn tất.
 
-## Giai đoạn 6 — Dashboard (Streamlit)
-```bash
-pip install -r requirements.txt
-python main.py dashboard          # mặc định 0.0.0.0:8501 (DASHBOARD_HOST / DASHBOARD_PORT)
-```
+## Giai đoạn 6 — Dashboard (Streamlit Cloud)
 - **Xem: không cần đăng nhập**. Khi đưa lên mạng, mọi người có thể xem tên, ảnh và tọa độ nhân viên; chỉ triển khai công khai nếu bạn chấp nhận việc này.
 - **Sửa: tài khoản/mật khẩu riêng** được cấu hình trong Streamlit Secrets, gắn với Telegram ID admin đang hoạt động (vai trò ADMIN/SUPER_ADMIN). Không dùng BOT_TOKEN, không gọi Telegram API và không gửi thông báo Telegram từ dashboard. Phiên hết hạn sau 8 giờ.
 - SUPER_ADMIN thêm/khóa admin ở trang "Quản trị admin"; để cấp tài khoản dashboard, thêm mục tương ứng vào `dashboard_users` trong Streamlit Secrets. Quyền vẫn được kiểm tra lại theo bảng `admins`, các thao tác được audit với nguồn `DASHBOARD`.
 - Mọi truy vấn xem chạy trong transaction READ ONLY và tham số hóa; dữ liệu lấy trực tiếp từ PostgreSQL (không dùng CSV).
-- Ảnh xem qua URL có chữ ký Cloudinary (loại `authenticated`); máy dashboard cần cấu hình `CLOUDINARY_*` và ra được Internet để tải ảnh.
+- Triển khai `dashboard/app.py` trên Streamlit Cloud; cấu hình PostgreSQL, Cloudinary và tài khoản trong Streamlit Secrets theo [docs/VAN_HANH.md](docs/VAN_HANH.md).
 
-Có thể cài riêng trên máy khác bằng `sudo ./deploy/install.sh --dashboard-only`; cấu hình `DATABASE_URL` trỏ tới PostgreSQL từ xa và `CLOUDINARY_*` nếu dùng Cloudinary. Schema phải được migrate trước trên máy bot/worker; dashboard không tự chạy migration khi khởi động. Hướng dẫn Streamlit Community Cloud và Supabase: [docs/VAN_HANH.md](docs/VAN_HANH.md).
+`deploy/install.sh` chỉ cài bot và worker trên máy chủ Ubuntu; không cài dịch vụ dashboard.
 
 ## Bổ sung
 - **Thư mục Cloudinary**: đặt `CLOUDINARY_FOLDER` trong `.env` (mặc định `attendance`). Ảnh mới lưu tại `<thư mục>/<YYYY-MM-DD>/<user>_<buổi>_<id>`

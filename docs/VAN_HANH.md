@@ -21,24 +21,12 @@ LOCAL_PHOTO_DIR=/var/lib/telegram-attendance/photos
 LOCAL_PHOTO_RETENTION_DAYS=90
 ```
 `LOCAL_PHOTO_DIR` cần nằm trên đĩa bền vững, được người dùng chạy dịch vụ ghi/đọc; không đặt trong thư mục tạm hoặc thư mục dự án bị thay thế khi cập nhật. Ảnh local được giữ trong 90 ngày (khoảng 3 tháng), worker tự xóa ảnh hết hạn mỗi ngày. Khi dùng `local`, không cần điền `CLOUDINARY_*`. Sau khi sửa `.env`, chạy lại `sudo ./deploy/install.sh` để dịch vụ nhận cấu hình.
-Tùy chọn: `--user TÊN` (người dùng chạy dịch vụ, mặc định là người gọi sudo), `--no-browser`, `--no-timers`.
-Admin cần nhắn `/start` riêng cho bot nếu muốn nhận tin nhắn từ bot; đăng nhập dashboard không còn phụ thuộc bước này.
+Tùy chọn: `--user TÊN` (người dùng chạy dịch vụ, mặc định là người gọi sudo), `--no-timers`.
+Admin cần nhắn `/start` riêng cho bot nếu muốn nhận tin nhắn từ bot.
 
-Được cài: `telegram-attendance-bot`, `-worker`, `-dashboard` (luôn tự khởi động lại), timer sao lưu 02:30 hằng ngày và timer kiểm tra sức khỏe 15 phút/lần.
+Được cài: `telegram-attendance-bot` và `telegram-attendance-worker` (luôn tự khởi động lại), timer sao lưu 02:30 hằng ngày và timer kiểm tra sức khỏe 15 phút/lần. Dashboard không được cài trên Ubuntu; triển khai riêng trên Streamlit Cloud.
 
 Migration `009_ocr_schema_cleanup.sql` chạy tự động khi bot/worker khởi động và bỏ các cột/index không còn dùng. Log OCR, ảnh điểm danh và audit vẫn giữ nguyên. PostgreSQL tái sử dụng vùng trống sau autovacuum; không chạy `VACUUM FULL` trên giờ hoạt động vì lệnh này khóa bảng.
-
-### Chạy dashboard trên máy riêng
-Bot và worker có thể tiếp tục chạy trên máy hiện tại; trên máy dashboard, lấy cùng phiên bản mã nguồn, tạo `.env` riêng rồi chỉ cài dịch vụ dashboard:
-```bash
-cp .env.example .env
-# Sửa .env: DATABASE_URL trỏ tới PostgreSQL từ xa, DASHBOARD_HOST=0.0.0.0,
-# DASHBOARD_PORT; thêm CLOUDINARY_* nếu PHOTO_STORAGE_BACKEND=cloudinary
-sudo ./deploy/install.sh --dashboard-only
-```
-Chế độ này chỉ cài/bật `telegram-attendance-dashboard`, không migrate DB và không bật bot, worker, sao lưu hay timer kiểm tra sức khỏe. Schema phải được máy chạy bot/worker cập nhật bằng `sudo ./deploy/install.sh` trước khi chạy dashboard; chạy lại lệnh `--dashboard-only` sau mỗi lần cập nhật mã nguồn.
-
-Tài khoản đăng nhập được cấu hình bằng `dashboard_users` trong Streamlit Secrets (xem mục dưới), gắn với Telegram ID của admin đang hoạt động. Dashboard không cần `BOT_TOKEN`, không gọi Telegram API và không gửi thông báo Telegram. Dùng Cloudinary để máy dashboard có thể tạo URL ảnh có chữ ký. Với `PHOTO_STORAGE_BACKEND=local`, phải mount thư mục ảnh dùng chung chỉ-đọc tại cùng đường dẫn mà `LOCAL_PHOTO_DIR` trỏ tới.
 
 ### Chạy trên Streamlit Community Cloud với Supabase
 1. Đẩy phiên bản dự án lên GitHub, vào Streamlit Community Cloud, chọn repository/branch và file chính `dashboard/app.py`.
@@ -69,7 +57,7 @@ Secrets chỉ tồn tại trong phần cấu hình riêng của ứng dụng, kh
 ## 3. Vận hành hằng ngày
 | Việc | Lệnh |
 |---|---|
-| Trạng thái | `systemctl status telegram-attendance-{bot,worker,dashboard}` |
+| Trạng thái | `systemctl status telegram-attendance-{bot,worker}` |
 | Xem log trực tiếp | `journalctl -u telegram-attendance-worker -f` |
 | Khởi động lại | `sudo systemctl restart telegram-attendance-bot` |
 | Kiểm tra sức khỏe | `.venv/bin/python main.py doctor` (thêm `--quick` để bỏ qua kiểm tra mạng) |
@@ -77,8 +65,7 @@ Secrets chỉ tồn tại trong phần cấu hình riêng của ứng dụng, kh
 | Cập nhật phiên bản | `git pull && sudo ./deploy/install.sh` (an toàn chạy lại; tự migrate và khởi động lại) |
 | Gỡ dịch vụ (giữ dữ liệu) | `sudo ./deploy/uninstall.sh` |
 
-Dashboard: `http://<IP máy chủ>:8501`. Xem không cần đăng nhập; sửa cần tài khoản dashboard riêng. Chỉ mở trong LAN/VPN:
-`sudo ufw allow from 192.168.0.0/16 to any port 8501`.
+Dashboard chạy riêng trên Streamlit Cloud; máy Ubuntu chỉ cần cho phép kết nối outbound tới PostgreSQL, Telegram, OCR.Space và dịch vụ lưu ảnh đang dùng.
 
 ## 4. Sao lưu & khôi phục
 - Tự động: `pg_dump -Fc` hằng ngày vào `BACKUP_DIR` (mặc định `backups/`, quyền 700), kiểm tra file đọc được, giữ `BACKUP_KEEP_DAYS` ngày (14). Lỗi sao lưu gửi cảnh báo Telegram cho admin.
