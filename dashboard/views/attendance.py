@@ -7,7 +7,8 @@ from dashboard.util import FINAL, PUNCTUALITY, SESSION, VERIFICATION, WEEKDAY, n
 COLUMNS = {
     "id": "ID", "attendance_date": "Ngày", "session": "Buổi", "full_name": "Nhân viên",
     "sales_point_name": "Điểm bán",
-    "photo_received_at": "Nhận lúc", "photo_taken_at": "Chụp lúc", "distance_km": "Cách điểm bán gần nhất (km)",
+    "photo_received_at": "Nhận lúc", "photo_taken_at": "Chụp lúc",
+    "longitude": "Kinh độ (long)", "latitude": "Vĩ độ (lat)",
     "verification_status": "Xác minh", "punctuality_status": "Giờ giấc", "final_status": "Kết quả", "flags": "Cờ",
 }
 
@@ -41,7 +42,6 @@ def render() -> None:
         if rows:
             df = pd.DataFrame(rows)
             df["flags"] = df["flags"].map(lambda f: ", ".join(f) if f else "")
-            df["distance_km"] = df["distance_km"].map(lambda v: None if v is None else float(v))
             df["attendance_date"] = pd.to_datetime(df["attendance_date"]).dt.strftime("%d/%m/%Y")
             common.localize(df, ["photo_received_at", "photo_taken_at"])
             common.label_col(df, "session", SESSION)

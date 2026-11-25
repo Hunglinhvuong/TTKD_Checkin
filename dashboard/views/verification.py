@@ -92,7 +92,6 @@ def render() -> None:
             "Điểm bán": d["sales_point_name"] or "—",
             "Nhận lúc (Telegram)": common.fmt_dt(d["photo_received_at"]),
             "Chụp lúc (OCR)": common.fmt_dt(d["photo_taken_at"]) or "—",
-            "Cách điểm bán gần nhất": f"{float(d['distance_km']):.3f} km" if d["distance_km"] is not None else "—",
             "Xác minh": label(VERIFICATION, d["verification_status"]),
             "Giờ giấc": label(PUNCTUALITY, d["punctuality_status"]),
             "Kết quả": label(FINAL, d["final_status"]),

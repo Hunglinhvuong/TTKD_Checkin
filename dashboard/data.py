@@ -100,8 +100,9 @@ def attendance_rows(
     params.append(limit)
     return _read(
         "SELECT r.id, r.attendance_date, r.session, u.full_name, r.sales_point_name, r.photo_received_at, r.photo_taken_at, "
-        "r.distance_km, r.verification_status, r.punctuality_status, r.final_status, r.flags "
-        "FROM attendance_records r JOIN users u ON u.id = r.user_id WHERE " + " AND ".join(where) +
+        "p.longitude, p.latitude, r.verification_status, r.punctuality_status, r.final_status, r.flags "
+        "FROM attendance_records r JOIN users u ON u.id = r.user_id "
+        "LEFT JOIN attendance_photos p ON p.attendance_record_id = r.id WHERE " + " AND ".join(where) +
         " ORDER BY r.attendance_date DESC, r.session DESC, u.full_name LIMIT %s",
         params,
     )
