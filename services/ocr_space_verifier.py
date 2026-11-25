@@ -13,7 +13,7 @@ from datetime import date, datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from services.timemark_verifier import VerificationOutcome, Verifier, parse_gps
+from services.verification_types import VerificationOutcome, parse_gps
 
 log = logging.getLogger(__name__)
 
@@ -172,8 +172,7 @@ class OCRSpaceVerifier:
     def __exit__(self, *_exc) -> None:
         return None
 
-    def verify(self, image_path: str, *, tag: str, debug_dir: Path | None = None) -> VerificationOutcome:
-        del tag, debug_dir
+    def verify(self, image_path: str) -> VerificationOutcome:
         boundary = f"----OCRSpace{uuid.uuid4().hex}"
         request = urllib.request.Request(
             self.endpoint,

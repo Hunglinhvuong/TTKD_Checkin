@@ -33,7 +33,7 @@ pytest                   # integration test chạy khi có TEST_DATABASE_URL (X�
 - Ngày nghỉ: `python -m scripts.seed_holidays 2027` (chỉ ngày dương lịch cố định). Tết, Giỗ Tổ, nghỉ bù: admin dùng
   `/holiday add|work|del|list` trong Telegram.
 - Ảnh upload lên Cloudinary dạng `authenticated` (không công khai); xem ảnh qua `photo_storage.signed_url()`.
-- Ảnh tạm trong `UPLOAD_TMP_DIR` được giữ cho worker xác minh (Giai đoạn 4) và sẽ được dọn ở giai đoạn đó.
+- Ảnh tạm trong `UPLOAD_TMP_DIR` được giữ cho worker OCR và sẽ được dọn sau khi xử lý xong.
 - Upload lỗi sẽ tự thử lại mỗi 5 phút (tối đa 5 lần).
 
 ## Giai đoạn 4 — Đọc thông tin ảnh bằng OCR.Space
@@ -42,13 +42,13 @@ pip install -r requirements.txt
 python main.py worker                     # chạy worker (tiến trình riêng với bot)
 ```
 - Cấu hình `OCR_SPACE_API_KEY`; worker nghỉ `OCR_SPACE_MIN_INTERVAL_S` giữa các lượt và chỉ một worker chạy cùng lúc.
-- Mặc định giới hạn ảnh 1 MB theo gói miễn phí (`OCR_SPACE_MAX_FILE_BYTES`); tăng cấu hình nếu gói OCR.Space cho phép file lớn hơn. Ảnh PNG/JPG/GIF được gửi nguyên bản tới OCR.Space.
+- Mặc định giới hạn ảnh 1 MB theo gói miễn phí (`OCR_SPACE_MAX_FILE_BYTES`); tăng cấu hình nếu gói OCR.Space cho phép file lớn hơn. Ảnh JPG/PNG được gửi nguyên bản tới OCR.Space.
 - Worker dùng OCR.Space để đọc thời gian và thông tin ảnh. Chỉ thời gian chụp được dùng để xác định ảnh thuộc buổi sáng hay chiều; GPS không được kiểm tra và không có đánh giá đúng giờ/muộn.
-- **OCR chỉ đọc nội dung ảnh, không xác thực ảnh nguyên bản hoặc phát hiện chỉnh sửa như Timemark.** Check-in hoàn tất sau khi có cả thời gian ảnh đúng buổi và tên điểm bán.
+- **OCR chỉ đọc nội dung ảnh, không xác thực ảnh nguyên bản hoặc phát hiện chỉnh sửa.** Check-in hoàn tất sau khi có cả thời gian ảnh đúng buổi và tên điểm bán.
 - Ảnh điểm danh được gửi tới dịch vụ OCR.Space bên ngoài; chỉ bật nếu chính sách quyền riêng tư của bạn cho phép.
 - Admin (chat riêng với bot): `/review`, `/resolve <id> VALID|LATE|REJECTED <lý do>`, `/reverify <id> <lý do>`.
 - Ảnh tạm được xóa sau khi xác minh xong và ảnh đã có trên Cloudinary.
-- Migration `009_ocr_schema_cleanup.sql` xóa log có provider `TIMEMARK_WEB`, bỏ bộ đếm retry Timemark và các cột screenshot/URL Cloudinary dư thừa; log OCR, quyết định admin và audit điểm danh vẫn được giữ. Ảnh screenshot trên filesystem không bị migration xóa.
+- Migration `009_ocr_schema_cleanup.sql` dọn dữ liệu và trường lưu trữ không còn dùng; log OCR, quyết định admin và audit điểm danh vẫn được giữ.
 
 ## Giai đoạn 5 — Ghi nhận điểm bán
 Sau khi nhận ảnh, bot thông báo ngày/buổi check-in theo thời điểm nhận ảnh và yêu cầu nhân viên nhập tên điểm bán. Chỉ sau khi đã đọc được

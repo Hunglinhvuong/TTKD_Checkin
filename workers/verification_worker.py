@@ -16,12 +16,11 @@ from config.settings import ConfigError, Settings
 from database.connection import close_pool, init_pool
 from services import attendance, notifier, photo_storage, verification
 from services.ocr_space_verifier import OCRSpaceVerifier
-from services.timemark_verifier import VerificationOutcome, Verifier
+from services.verification_types import VerificationOutcome, Verifier
 
 log = logging.getLogger(__name__)
 WORKER_LOCK_ID = 726_002
 SUPPORTED_EXT = {"jpg", "jpeg", "png", "gif"}
-BLOCK_COOLDOWN_S = 30 * 60
 POLL_S = 3
 
 
@@ -45,7 +44,7 @@ def process_job(job: verification.ClaimedJob, verifier: Verifier, settings: Sett
             return _manual(f"NO_IMAGE_FILE: {type(exc).__name__}: {exc}"[:500])
 
     try:
-        return verifier.verify(path, tag=f"rec{job.record_id}")
+        return verifier.verify(path)
     except Exception as exc:  # noqa: BLE001
         log.exception("Lỗi không lường trước khi xác minh bản ghi %s", job.record_id)
         return VerificationOutcome("AUTOMATION_ERROR", error=f"{type(exc).__name__}: {exc}"[:500])
@@ -83,7 +82,6 @@ def run_worker(settings: Settings) -> int:
         for sig in (signal.SIGINT, signal.SIGTERM):
             signal.signal(sig, lambda *_: stop.set())
         worker_id = f"{socket.gethostname()}:{os.getpid()}"
-        cooldown_until = 0.0
         next_local_cleanup = 0.0
         next_checkin_sweep = 0.0
         log.info("Worker %s bắt đầu", worker_id)
@@ -104,9 +102,6 @@ def run_worker(settings: Settings) -> int:
                         next_local_cleanup = time.time() + 3600
                     else:
                         next_local_cleanup = time.time() + 24 * 60 * 60
-                if time.time() < cooldown_until:
-                    stop.wait(10)
-                    continue
                 try:
                     if time.monotonic() >= next_checkin_sweep:
                         for completed in attendance.complete_pending_checkins(settings.timezone):
@@ -125,10 +120,6 @@ def run_worker(settings: Settings) -> int:
                             photo_storage.cleanup_temp_if_done(job.photo["id"])
                         if comp.checkin:
                             _notify_checkin(settings, comp.checkin)
-                    if outcome.blocked:
-                        cooldown_until = time.time() + BLOCK_COOLDOWN_S
-                        log.error("OCR provider chặn/yêu cầu CAPTCHA: tạm dừng %d phút, các ảnh chuyển xác minh thủ công",
-                                  BLOCK_COOLDOWN_S // 60)
                     stop.wait(settings.ocr_space_min_interval_s)
                 except Exception:  # noqa: BLE001
                     log.exception("Lỗi vòng lặp worker")

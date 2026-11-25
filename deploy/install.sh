@@ -43,7 +43,7 @@ say "Thư mục chạy và .env"
 if [[ $DASHBOARD_ONLY -eq 1 ]]; then
   install -d -o "$RUN_USER" -m 0750 "$ROOT/logs"
 else
-  for d in logs tmp tmp/photos screenshots backups; do install -d -o "$RUN_USER" -m 0750 "$ROOT/$d"; done
+  for d in logs tmp tmp/photos backups; do install -d -o "$RUN_USER" -m 0750 "$ROOT/$d"; done
   chmod 700 "$ROOT/tmp" "$ROOT/backups"
 fi
 if [[ ! -f "$ROOT/.env" ]]; then

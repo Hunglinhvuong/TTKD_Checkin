@@ -57,7 +57,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     elif res.kind == "APPROVED":
         await msg.reply_text(
             f"Chào {_esc(res.user['full_name'])}! Bạn đã được duyệt.\n"
-            "Để điểm danh, gửi ảnh chụp bằng Timemark vào nhóm này.",
+            "Để điểm danh, gửi ảnh có hiển thị rõ ngày giờ chụp vào nhóm này.",
             parse_mode=HTML,
         )
     else:  # REJECTED | DISABLED

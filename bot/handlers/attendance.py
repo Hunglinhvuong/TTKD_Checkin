@@ -16,8 +16,8 @@ from services import attendance, photo_storage
 from services.workcalendar import SESSION_LABEL
 
 log = logging.getLogger(__name__)
-MAX_BYTES = 10 * 1024 * 1024  # trang verify.timemark.com chỉ nhận tối đa 10 MB
-ALLOWED_EXT = {"jpg", "png"}  # trang chỉ hỗ trợ PNG/JPG/GIF; không chuyển đổi vì sẽ làm đổi ảnh gốc
+MAX_BYTES = 10 * 1024 * 1024
+ALLOWED_EXT = {"jpg", "png"}
 MAX_DOWNLOAD_ATTEMPTS = 3
 RETRY_BASE_DELAY_SECONDS = 0.5
 GET_FILE_TIMEOUTS = {"read_timeout": 15, "connect_timeout": 10, "pool_timeout": 10}
@@ -101,7 +101,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if settings.attendance_chat_ids and chat.id not in settings.attendance_chat_ids:
         return
     if msg.forward_origin is not None:
-        await msg.reply_text("⛔ Không nhận ảnh chuyển tiếp. Hãy tự chụp bằng Timemark và gửi trực tiếp.")
+        await msg.reply_text("⛔ Không nhận ảnh chuyển tiếp. Vui lòng gửi ảnh điểm danh trực tiếp.")
         return
 
     pre = await asyncio.to_thread(attendance.precheck, u.id, msg.date, settings.timezone)

@@ -9,7 +9,7 @@ from database.connection import get_conn
 from repositories import audit, verification as repo
 from services import punctuality
 from services import attendance as attendance_service
-from services.timemark_verifier import VerificationOutcome
+from services.verification_types import VerificationOutcome
 
 log = logging.getLogger(__name__)
 STALE_MINUTES = 10
@@ -88,7 +88,6 @@ def _fail_exhausted(conn, job: dict) -> None:
 def _parsed_json(o: VerificationOutcome) -> dict:
     return {
         "status_text": o.status_text,
-        "status_code": o.status_code,
         "reason": o.reason,
         "fields": o.fields,
         "gps_state": o.gps_state,
@@ -157,7 +156,7 @@ def complete(
             old_value={"final_status": record["final_status"]},
             new_value={
                 "verification_status": outcome.status, "final_status": final, "flags": flags,
-                "reason": outcome.reason, "status_code": outcome.status_code,
+                "reason": outcome.reason,
                 **({"punctuality": ev.punctuality, "distance_km": ev.distance_km,
                     "deadline": ev.deadline.isoformat() if ev.deadline else None, "evaluation": ev.reason} if ev else {}),
             },

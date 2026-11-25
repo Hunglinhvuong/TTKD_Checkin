@@ -84,12 +84,6 @@ class Settings:
     ocr_space_timeout_s: int
     ocr_space_min_interval_s: int
     ocr_space_max_file_bytes: int
-    timemark_url: str
-    timemark_headless: bool
-    timemark_result_timeout_s: int
-    timemark_min_interval_s: int
-    timemark_no_sandbox: bool
-    screenshot_dir: Path
     dashboard_host: str
     dashboard_port: int
     timezone: str
@@ -129,12 +123,6 @@ def load_settings(env_file: str | os.PathLike | None = None) -> Settings:
         ocr_space_timeout_s=_int("OCR_SPACE_TIMEOUT_S", 60),
         ocr_space_min_interval_s=_int("OCR_SPACE_MIN_INTERVAL_S", 5),
         ocr_space_max_file_bytes=_int("OCR_SPACE_MAX_FILE_BYTES", 1_000_000),
-        timemark_url=os.getenv("TIMEMARK_URL", "https://verify.timemark.com/").strip(),
-        timemark_headless=_bool("TIMEMARK_HEADLESS", True),
-        timemark_result_timeout_s=_int("TIMEMARK_RESULT_TIMEOUT_S", 60),
-        timemark_min_interval_s=_int("TIMEMARK_MIN_INTERVAL_S", 5),
-        timemark_no_sandbox=_bool("TIMEMARK_NO_SANDBOX", False),
-        screenshot_dir=_path("SCREENSHOT_DIR", "screenshots"),
         dashboard_host=os.getenv("DASHBOARD_HOST", "0.0.0.0").strip() or "0.0.0.0",
         dashboard_port=_int("DASHBOARD_PORT", 8501),
         timezone=os.getenv("TIMEZONE", "Asia/Ho_Chi_Minh").strip(),
@@ -156,6 +144,4 @@ def load_settings(env_file: str | os.PathLike | None = None) -> Settings:
         raise ConfigError("OCR_SPACE_TIMEOUT_S >= 10 và OCR_SPACE_MIN_INTERVAL_S >= 1")
     if s.ocr_space_max_file_bytes < 1:
         raise ConfigError("OCR_SPACE_MAX_FILE_BYTES phải >= 1")
-    if s.timemark_result_timeout_s < 10 or s.timemark_min_interval_s < 1:
-        raise ConfigError("TIMEMARK_RESULT_TIMEOUT_S >= 10 và TIMEMARK_MIN_INTERVAL_S >= 1")
     return s

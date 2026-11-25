@@ -26,7 +26,7 @@ Admin cần nhắn `/start` riêng cho bot nếu muốn nhận tin nhắn từ b
 
 Được cài: `telegram-attendance-bot`, `-worker`, `-dashboard` (luôn tự khởi động lại), timer sao lưu 02:30 hằng ngày và timer kiểm tra sức khỏe 15 phút/lần.
 
-Migration `009_ocr_schema_cleanup.sql` chạy tự động khi bot/worker khởi động, xóa log Timemark trong `verification_logs` và bỏ các cột/index không còn dùng. Log OCR, ảnh điểm danh và audit vẫn giữ nguyên; file screenshot cũ trên filesystem không bị migration xóa. PostgreSQL tái sử dụng vùng trống sau autovacuum; không chạy `VACUUM FULL` trên giờ hoạt động vì lệnh này khóa bảng.
+Migration `009_ocr_schema_cleanup.sql` chạy tự động khi bot/worker khởi động và bỏ các cột/index không còn dùng. Log OCR, ảnh điểm danh và audit vẫn giữ nguyên. PostgreSQL tái sử dụng vùng trống sau autovacuum; không chạy `VACUUM FULL` trên giờ hoạt động vì lệnh này khóa bảng.
 
 ### Chạy dashboard trên máy riêng
 Bot và worker có thể tiếp tục chạy trên máy hiện tại; trên máy dashboard, lấy cùng phiên bản mã nguồn, tạo `.env` riêng rồi chỉ cài dịch vụ dashboard:

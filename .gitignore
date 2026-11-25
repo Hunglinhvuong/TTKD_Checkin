@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 .venv/
 logs/
-screenshots/
 local/photos/
 .pytest_cache/
 venv/
