@@ -57,8 +57,8 @@ say "Kiểm tra kết nối CSDL và áp dụng migration"
 
 say "Cài file systemd"
 UNITS=(
-  "bot.service:telegram-attendance-bot.service"
-  "worker.service:telegram-attendance-worker.service"
+  "bot.service:TTKD_Checkin-bot.service"
+  "worker.service:TTKD_Checkin-worker.service"
   "alert@.service:telegram-attendance-alert@.service"
   "backup.service:telegram-attendance-backup.service"
   "backup.timer:telegram-attendance-backup.timer"
@@ -72,15 +72,17 @@ for pair in "${UNITS[@]}"; do
 done
 chmod +x "$ROOT"/deploy/*.sh
 
-if systemctl cat telegram-attendance-dashboard.service >/dev/null 2>&1; then
-  say "Gỡ unit dashboard cục bộ cũ"
-  systemctl disable --now telegram-attendance-dashboard.service 2>/dev/null || true
-  rm -f /etc/systemd/system/telegram-attendance-dashboard.service
-fi
+for unit in telegram-attendance-bot.service telegram-attendance-worker.service telegram-attendance-dashboard.service; do
+  if systemctl cat "$unit" >/dev/null 2>&1; then
+    say "Gỡ unit cũ: $unit"
+    systemctl disable --now "$unit" 2>/dev/null || true
+    rm -f "/etc/systemd/system/$unit"
+  fi
+done
 systemctl daemon-reload
 
 say "Bật và (khởi động lại) dịch vụ"
-SERVICES=(telegram-attendance-bot telegram-attendance-worker)
+SERVICES=(TTKD_Checkin-bot TTKD_Checkin-worker)
 systemctl enable "${SERVICES[@]}"
 systemctl restart "${SERVICES[@]}"
 if [[ $NO_TIMERS -eq 0 ]]; then
@@ -92,8 +94,8 @@ systemctl --no-pager --lines=0 status "${SERVICES[@]}" || true
 cat <<MSG
 
 Xong. Lệnh thường dùng:
-  journalctl -u telegram-attendance-bot -f
-  journalctl -u telegram-attendance-worker -f
-  sudo systemctl restart telegram-attendance-bot telegram-attendance-worker
+  journalctl -u TTKD_Checkin-bot -f
+  journalctl -u TTKD_Checkin-worker -f
+  sudo systemctl restart TTKD_Checkin-bot TTKD_Checkin-worker
 Dashboard được triển khai riêng trên Streamlit Cloud.
 MSG

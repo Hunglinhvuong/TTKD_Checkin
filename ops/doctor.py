@@ -24,7 +24,7 @@ from ops.alerts import send_admins
 log = logging.getLogger(__name__)
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 ICON = {OK: "✅", WARN: "⚠️", FAIL: "❌"}
-SERVICES = ("telegram-attendance-bot", "telegram-attendance-worker")
+SERVICES = ("TTKD_Checkin-bot", "TTKD_Checkin-worker")
 BACKUP_WARN_H, BACKUP_FAIL_H = 36, 72
 QUEUE_STALE_MIN = 30
 REALERT_SECONDS = 6 * 3600

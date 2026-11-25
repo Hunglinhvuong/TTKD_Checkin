@@ -24,7 +24,7 @@ LOCAL_PHOTO_RETENTION_DAYS=90
 Tùy chọn: `--user TÊN` (người dùng chạy dịch vụ, mặc định là người gọi sudo), `--no-timers`.
 Admin cần nhắn `/start` riêng cho bot nếu muốn nhận tin nhắn từ bot.
 
-Được cài: `telegram-attendance-bot` và `telegram-attendance-worker` (luôn tự khởi động lại), timer sao lưu 02:30 hằng ngày và timer kiểm tra sức khỏe 15 phút/lần. Dashboard không được cài trên Ubuntu; triển khai riêng trên Streamlit Cloud.
+Được cài: `TTKD_Checkin-bot` và `TTKD_Checkin-worker` (luôn tự khởi động lại), timer sao lưu 02:30 hằng ngày và timer kiểm tra sức khỏe 15 phút/lần. Dashboard không được cài trên Ubuntu; triển khai riêng trên Streamlit Cloud.
 
 Migration `009_ocr_schema_cleanup.sql` chạy tự động khi bot/worker khởi động và bỏ các cột/index không còn dùng. Log OCR, ảnh điểm danh và audit vẫn giữ nguyên. PostgreSQL tái sử dụng vùng trống sau autovacuum; không chạy `VACUUM FULL` trên giờ hoạt động vì lệnh này khóa bảng.
 
@@ -57,9 +57,9 @@ Secrets chỉ tồn tại trong phần cấu hình riêng của ứng dụng, kh
 ## 3. Vận hành hằng ngày
 | Việc | Lệnh |
 |---|---|
-| Trạng thái | `systemctl status telegram-attendance-{bot,worker}` |
-| Xem log trực tiếp | `journalctl -u telegram-attendance-worker -f` |
-| Khởi động lại | `sudo systemctl restart telegram-attendance-bot` |
+| Trạng thái | `systemctl status TTKD_Checkin-{bot,worker}` |
+| Xem log trực tiếp | `journalctl -u TTKD_Checkin-worker -f` |
+| Khởi động lại | `sudo systemctl restart TTKD_Checkin-bot TTKD_Checkin-worker` |
 | Kiểm tra sức khỏe | `.venv/bin/python main.py doctor` (thêm `--quick` để bỏ qua kiểm tra mạng) |
 | Sao lưu ngay | `./deploy/backup.sh` |
 | Cập nhật phiên bản | `git pull && sudo ./deploy/install.sh` (an toàn chạy lại; tự migrate và khởi động lại) |
@@ -85,9 +85,9 @@ Không có `TEST_DATABASE_URL` thì các test tích hợp bị bỏ qua; `tests/
 ## 7. Xử lý sự cố
 | Triệu chứng | Nguyên nhân thường gặp → xử lý |
 |---|---|
-| Bot không trả lời / log `telegram.error.TimedOut` khi khởi động | `journalctl -u telegram-attendance-bot`; kiểm tra `BOT_TOKEN` và kết nối HTTPS outbound tới `api.telegram.org`. Bot sẽ retry liên tục khi Telegram tạm thời mất kết nối; 2 bản bot cùng chạy (lỗi 409 Conflict) → tắt bản thừa |
-| Bot báo không tải được ảnh | Lỗi mạng tạm thời khi lấy thông tin hoặc tải file được thử lại tối đa 3 lần. Kiểm tra `journalctl -u telegram-attendance-bot` với `stage=get_file` hoặc `stage=download`, `error_type` và `size_bytes`; nếu lỗi lặp lại, kiểm tra DNS, firewall và kết nối mạng outbound tới Telegram |
-| Ảnh kẹt "đang chờ xác minh" | worker không chạy (`systemctl status ...-worker`); kiểm tra `OCR_SPACE_API_KEY`, giới hạn dung lượng ảnh và log worker |
+| Bot không trả lời / log `telegram.error.TimedOut` khi khởi động | `journalctl -u TTKD_Checkin-bot`; kiểm tra `BOT_TOKEN` và kết nối HTTPS outbound tới `api.telegram.org`. Bot sẽ retry liên tục khi Telegram tạm thời mất kết nối; 2 bản bot cùng chạy (lỗi 409 Conflict) → tắt bản thừa |
+| Bot báo không tải được ảnh | Lỗi mạng tạm thời khi lấy thông tin hoặc tải file được thử lại tối đa 3 lần. Kiểm tra `journalctl -u TTKD_Checkin-bot` với `stage=get_file` hoặc `stage=download`, `error_type` và `size_bytes`; nếu lỗi lặp lại, kiểm tra DNS, firewall và kết nối mạng outbound tới Telegram |
+| Ảnh kẹt "đang chờ xác minh" | worker không chạy (`systemctl status TTKD_Checkin-worker`); kiểm tra `OCR_SPACE_API_KEY`, giới hạn dung lượng ảnh và log worker |
 | OCR.Space không đọc được ảnh | kiểm tra kết nối tới `api.ocr.space`, API key và giới hạn gói dịch vụ; ảnh vượt `OCR_SPACE_MAX_FILE_BYTES` sẽ chuyển `MANUAL_REVIEW` |
 | Ảnh không lên Cloudinary | dashboard → Nhật ký → Bất thường; kiểm tra `CLOUDINARY_*`; lỗi `asset_folder` → `CLOUDINARY_SET_ASSET_FOLDER=false`; tự thử lại 5 lần. Máy không ra được Cloudinary: đặt `PHOTO_STORAGE_BACKEND=local` và cấu hình `LOCAL_PHOTO_DIR` |
 | Không đăng nhập được dashboard | kiểm tra `dashboard_users` trong Streamlit Secrets: username, password hash hợp lệ và Telegram ID có quyền ADMIN/SUPER_ADMIN đang ACTIVE |

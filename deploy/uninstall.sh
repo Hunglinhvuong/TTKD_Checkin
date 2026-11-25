@@ -2,7 +2,8 @@
 # Gỡ dịch vụ systemd (GIỮ NGUYÊN mã nguồn, .env, .venv, CSDL và bản sao lưu). Chạy: sudo ./deploy/uninstall.sh
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "Cần chạy bằng sudo." >&2; exit 1; }
-NAMES=(telegram-attendance-bot.service telegram-attendance-worker.service telegram-attendance-dashboard.service
+NAMES=(TTKD_Checkin-bot.service TTKD_Checkin-worker.service
+       telegram-attendance-bot.service telegram-attendance-worker.service telegram-attendance-dashboard.service
        telegram-attendance-backup.timer telegram-attendance-doctor.timer
        telegram-attendance-backup.service telegram-attendance-doctor.service "telegram-attendance-alert@.service")
 for u in "${NAMES[@]}"; do

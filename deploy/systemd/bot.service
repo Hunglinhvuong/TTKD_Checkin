@@ -1,5 +1,5 @@
 [Unit]
-Description=Telegram Attendance - Bot Telegram
+Description=TTKD_Checkin - Bot Telegram
 After=network-online.target postgresql.service
 Wants=network-online.target
 StartLimitIntervalSec=0

@@ -18,7 +18,7 @@ if [[ $ASSUME_YES -ne 1 ]]; then
 fi
 
 SUDO=""; [[ $EUID -eq 0 ]] || SUDO="sudo"
-UNITS=(telegram-attendance-bot telegram-attendance-worker)
+UNITS=(TTKD_Checkin-bot TTKD_Checkin-worker)
 HAVE_UNITS=0
 if command -v systemctl >/dev/null && systemctl cat "${UNITS[0]}" >/dev/null 2>&1; then
   HAVE_UNITS=1
