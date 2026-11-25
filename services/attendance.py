@@ -6,6 +6,7 @@ from datetime import date, datetime
 
 from database.connection import get_conn
 from repositories import attendance, audit, conversations, holidays, users
+from services import punctuality
 from services.workcalendar import is_working_day, session_for, to_local
 
 # Tối đa 3 ảnh gửi trong mỗi buổi, gồm cả ảnh đầu tiên.
@@ -52,7 +53,18 @@ class IntakeResult:
 
 @dataclass(frozen=True)
 class SalesPointNameResult:
-    kind: str  # NO_STATE | INVALID | SAVED | NOT_FOUND
+    kind: str  # NO_STATE | INVALID | COMPLETED | WAITING | NOT_FOUND
+    completion: CheckinCompletion | None = None
+
+
+@dataclass(frozen=True)
+class CheckinCompletion:
+    final_status: str
+    reason: str | None
+    resubmit_allowed: bool
+    telegram_chat_id: int
+    telegram_message_id: int
+    sales_point_name: str
 
 
 class _Duplicate(Exception):
@@ -98,8 +110,73 @@ def normalize_sales_point_name(raw_name: str | None) -> str | None:
     return name if 1 <= len(name) <= 200 else None
 
 
+def complete_checkin(conn, record: dict, tz: str) -> CheckinCompletion | None:
+    if (
+        not record["sales_point_name"]
+        or record["checkin_completed_at"] is not None
+        or record["verification_status"] in ("PENDING", "PROCESSING")
+    ):
+        return None
+
+    flags = [flag for flag in record["flags"] if flag not in punctuality.EVAL_FLAGS]
+    if record["verification_status"] == "VERIFIED_AUTHENTIC":
+        evaluation = punctuality.evaluate(
+            session=record["session"],
+            capture_time=record["photo_taken_at"],
+            tz=tz,
+        )
+        flags.extend(flag for flag in evaluation.flags if flag not in flags)
+        final_status = evaluation.final_status
+        reason = (
+            "SESSION_MISMATCH" if "CAPTURE_SESSION_MISMATCH" in evaluation.flags
+            else "NO_CAPTURE_TIME" if "NO_CAPTURE_TIME" in evaluation.flags
+            else None
+        )
+    else:
+        final_status = "REJECTED"
+        reason = "OCR_READ_FAILED"
+
+    resubmit_allowed = (
+        final_status == "REJECTED"
+        and attendance.count_attempts(conn, record["user_id"], record["attendance_date"], record["session"])
+        < MAX_ATTEMPTS_PER_SESSION
+    )
+    completed = attendance.complete_checkin(
+        conn,
+        record["id"],
+        final_status=final_status,
+        flags=flags,
+        resubmit_allowed=resubmit_allowed,
+    )
+    if completed is None:
+        return None
+
+    audit.add(
+        conn,
+        action="ATTENDANCE_CHECKIN_COMPLETED",
+        entity_type="attendance_records",
+        entity_id=record["id"],
+        actor_type="SYSTEM",
+        new_value={
+            "final_status": final_status,
+            "sales_point_name": record["sales_point_name"],
+            "capture_session_matches": final_status == "VALID",
+            "resubmit_allowed": resubmit_allowed,
+        },
+        reason=reason,
+    )
+    return CheckinCompletion(
+        final_status=final_status,
+        reason=reason,
+        resubmit_allowed=resubmit_allowed,
+        telegram_chat_id=record["telegram_chat_id"],
+        telegram_message_id=record["telegram_message_id"],
+        sales_point_name=record["sales_point_name"],
+    )
+
+
 def submit_sales_point_name(
-    telegram_user_id: int, chat_id: int, raw_name: str | None
+    telegram_user_id: int, chat_id: int, raw_name: str | None, tz: str = "Asia/Ho_Chi_Minh"
 ) -> SalesPointNameResult:
     with get_conn() as conn:
         state = conversations.get_state(conn, telegram_user_id, chat_id, for_update=True)
@@ -124,7 +201,17 @@ def submit_sales_point_name(
                 new_value={"sales_point_name": name},
             )
         conversations.clear(conn, telegram_user_id, chat_id)
-        return SalesPointNameResult("SAVED" if record else "NOT_FOUND")
+        if record is None:
+            return SalesPointNameResult("NOT_FOUND")
+        completion = complete_checkin(conn, record, tz)
+        return SalesPointNameResult("COMPLETED" if completion else "WAITING", completion)
+
+
+def complete_pending_checkins(tz: str, limit: int = 100) -> list[CheckinCompletion]:
+    with get_conn() as conn:
+        records = attendance.list_checkins_ready_to_complete(conn, limit)
+        results = [complete_checkin(conn, record, tz) for record in records]
+        return [result for result in results if result is not None]
 
 
 def record_intake(intake: PhotoIntake, tz: str) -> IntakeResult:

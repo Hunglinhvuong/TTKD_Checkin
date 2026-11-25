@@ -45,17 +45,44 @@ def find_other_with_hash(conn: Connection, sha256: str, record_id: int) -> dict 
 
 def add_flag(conn: Connection, record_id: int, flag: str) -> None:
     conn.execute(
-        "UPDATE attendance_records SET flags = array_append(flags, %s), final_status = 'PENDING_REVIEW' WHERE id = %s",
+        "UPDATE attendance_records SET flags = array_append(flags, %s) WHERE id = %s",
         (flag, record_id),
     )
 
 
-def set_sales_point_name(conn: Connection, record_id: int, user_id: int, name: str) -> dict | None:
+def set_sales_point_name(
+    conn: Connection, record_id: int, telegram_user_id: int, name: str
+) -> dict | None:
     return conn.execute(
         "UPDATE attendance_records SET sales_point_name = %s "
-        "WHERE id = %s AND user_id = %s AND sales_point_name IS NULL RETURNING *",
-        (name, record_id, user_id),
+        "WHERE id = %s AND user_id = "
+        "(SELECT id FROM users WHERE telegram_user_id = %s) "
+        "AND sales_point_name IS NULL RETURNING *",
+        (name, record_id, telegram_user_id),
     ).fetchone()
+
+
+def complete_checkin(
+    conn: Connection, record_id: int, *, final_status: str, flags: list[str], resubmit_allowed: bool
+) -> dict | None:
+    return conn.execute(
+        "UPDATE attendance_records SET final_status = %s, flags = %s, "
+        "punctuality_status = 'NOT_EVALUATED', resubmit_allowed = %s, "
+        "processed_at = now(), checkin_completed_at = now() "
+        "WHERE id = %s AND sales_point_name IS NOT NULL AND checkin_completed_at IS NULL "
+        "AND verification_status NOT IN ('PENDING', 'PROCESSING') "
+        "RETURNING *",
+        (final_status, flags, resubmit_allowed, record_id),
+    ).fetchone()
+
+
+def list_checkins_ready_to_complete(conn: Connection, limit: int = 100) -> list[dict]:
+    return conn.execute(
+        "SELECT * FROM attendance_records WHERE sales_point_name IS NOT NULL "
+        "AND checkin_completed_at IS NULL AND verification_status NOT IN ('PENDING', 'PROCESSING') "
+        "AND superseded_at IS NULL ORDER BY id LIMIT %s FOR UPDATE SKIP LOCKED",
+        (limit,),
+    ).fetchall()
 
 
 def create_verification_job(conn: Connection, record_id: int) -> None:

@@ -7,6 +7,7 @@ import urllib.request
 
 log = logging.getLogger(__name__)
 
+
 def reply(token: str, chat_id: int, reply_to_message_id: int | None, text: str) -> bool:
     if not token:
         return False
@@ -26,36 +27,20 @@ def reply(token: str, chat_id: int, reply_to_message_id: int | None, text: str) 
         return False
 
 
-def message_for(
-    verification_status: str, final_status: str | None, reason: str | None = None, deadline=None,
-    resubmit_allowed: bool = True, capture_date=None, expected_date=None,
+def checkin_message(
+    final_status: str | None, reason: str | None, resubmit_allowed: bool, sales_point_name: str
 ) -> str:
     resend = (
-        " Vui lòng chụp lại ảnh có hiển thị ngày giờ và gửi ảnh khác."
+        " Vui lòng gửi lại ảnh check-in."
         if resubmit_allowed
         else " Bạn đã hết số lần gửi ảnh trong buổi này, vui lòng liên hệ admin."
     )
-    if reason == "DATE_MISMATCH":  # ngày chụp đọc được không khớp ngày điểm danh
-        cd = f"{capture_date:%d/%m/%Y}" if capture_date else "?"
-        ed = f"{expected_date:%d/%m/%Y}" if expected_date else "?"
-        base = f"❌ Ngày chụp đọc từ ảnh ({cd}) không phải ngày điểm danh ({ed})."
-        return base + resend
     if reason == "SESSION_MISMATCH":
-        return "❌ Buổi chụp đọc từ ảnh không khớp buổi điểm danh." + resend
-    if reason == "OUTSIDE_SALES_POINT_RADIUS":
-        return "⚠️ Vị trí GPS trong ảnh nằm ngoài bán kính điểm bán cho phép. Bản ghi đang chờ admin kiểm tra."
-    if verification_status == "VERIFIED_AUTHENTIC" and final_status == "VALID":
-        return "✅ Ảnh điểm danh đã được xác minh."
-    if verification_status == "VERIFIED_AUTHENTIC" and final_status == "LATE":
-        return "⏰ Điểm danh bị tính muộn" + (f" (hạn {deadline:%H:%M})." if deadline else ".")
-    if verification_status == "VERIFIED_AUTHENTIC" and final_status == "RECEIVED":
-        return "✅ OCR.Space đã đọc được thông tin ảnh; hệ thống sẽ tiếp tục xử lý."
-    if verification_status == "VERIFIED_FAKE":
-        if reason == "EDITED":
-            return "❌ Ảnh không được xác nhận là nguyên bản, không được chấp nhận." + resend
-        return "❌ Ảnh không vượt qua bước xác minh." + resend
-    if verification_status == "UNABLE_TO_VERIFY" and reason == "NO_VALID_CODE":
-        return "❌ Ảnh không có code hợp lệ." + resend
-    if final_status == "REJECTED":
-        return "❌ Ảnh bị từ chối." + resend
-    return "⚠️ Ảnh cần admin kiểm tra."
+        return "❌ Check-in không hợp lệ: thời gian trên ảnh thuộc buổi khác với buổi check-in." + resend
+    if reason == "NO_CAPTURE_TIME":
+        return "❌ Check-in không hợp lệ: không đọc được thời gian trên ảnh." + resend
+    if reason == "OCR_READ_FAILED":
+        return "❌ Check-in không hợp lệ: không đọc được thông tin thời gian từ ảnh." + resend
+    if final_status == "VALID":
+        return f"✅ Check-in hợp lệ. Điểm bán: {sales_point_name}."
+    return "❌ Check-in không hợp lệ." + resend

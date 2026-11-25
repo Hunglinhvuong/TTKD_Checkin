@@ -43,18 +43,18 @@ python main.py worker                     # chạy worker (tiến trình riêng 
 ```
 - Cấu hình `OCR_SPACE_API_KEY`; worker nghỉ `OCR_SPACE_MIN_INTERVAL_S` giữa các lượt và chỉ một worker chạy cùng lúc.
 - Mặc định giới hạn ảnh 1 MB theo gói miễn phí (`OCR_SPACE_MAX_FILE_BYTES`); tăng cấu hình nếu gói OCR.Space cho phép file lớn hơn. Ảnh PNG/JPG/GIF được gửi nguyên bản tới OCR.Space.
-- Worker đọc thông tin ảnh bằng OCR.Space; tọa độ và thời gian đọc được chỉ lưu làm dữ liệu tham khảo, không dùng để kiểm tra vị trí hay đúng giờ/muộn.
-- Tọa độ GPS và thời gian OCR vẫn được lưu khi đọc được để tham khảo, không dùng làm điều kiện check-in.
-- **OCR không xác thực ảnh nguyên bản hoặc phát hiện chỉnh sửa như Timemark.** Theo cấu hình hiện tại, kết quả OCR được xử lý như xác minh thành công để tiếp tục tự động chấm công; chỉ dùng khi chấp nhận rủi ro này.
+- Worker dùng OCR.Space để đọc thời gian và thông tin ảnh. Chỉ thời gian chụp được dùng để xác định ảnh thuộc buổi sáng hay chiều; GPS không được kiểm tra và không có đánh giá đúng giờ/muộn.
+- **OCR chỉ đọc nội dung ảnh, không xác thực ảnh nguyên bản hoặc phát hiện chỉnh sửa như Timemark.** Check-in hoàn tất sau khi có cả thời gian ảnh đúng buổi và tên điểm bán.
 - Ảnh điểm danh được gửi tới dịch vụ OCR.Space bên ngoài; chỉ bật nếu chính sách quyền riêng tư của bạn cho phép.
 - Admin (chat riêng với bot): `/review`, `/resolve <id> VALID|LATE|REJECTED <lý do>`, `/reverify <id> <lý do>`.
 - Ảnh tạm được xóa sau khi xác minh xong và ảnh đã có trên Cloudinary.
 - Migration `009_ocr_schema_cleanup.sql` xóa log có provider `TIMEMARK_WEB`, bỏ bộ đếm retry Timemark và các cột screenshot/URL Cloudinary dư thừa; log OCR, quyết định admin và audit điểm danh vẫn được giữ. Ảnh screenshot trên filesystem không bị migration xóa.
 
 ## Giai đoạn 5 — Ghi nhận điểm bán
-Sau khi nhận ảnh, bot thông báo ngày/buổi check-in theo thời điểm nhận ảnh và yêu cầu nhân viên nhập tên điểm bán. Tên được lưu trên bản ghi
-và hiển thị trong dashboard. Check-in không bị từ chối/chuyển kiểm tra vì tọa độ GPS, thời gian chụp, hoặc đúng giờ/muộn; trạng thái giờ giấc
-được để `NOT_EVALUATED`. Việc xác minh ảnh và xử lý ảnh trùng vẫn tiếp tục như trước.
+Sau khi nhận ảnh, bot thông báo ngày/buổi check-in theo thời điểm nhận ảnh và yêu cầu nhân viên nhập tên điểm bán. Chỉ sau khi đã đọc được
+thời gian ảnh và nhập tên điểm bán, hệ thống mới hoàn tất và thông báo kết quả check-in. Check-in hợp lệ khi thời gian trên ảnh thuộc đúng buổi;
+không kiểm tra tọa độ GPS hoặc tính đúng giờ/muộn, trạng thái giờ giấc được để `NOT_EVALUATED`. Nếu OCR hoàn tất trước khi nhập tên, kết quả sẽ
+được gửi sau khi nhập tên; nếu nhập tên trước thì kết quả được gửi khi OCR hoàn tất.
 
 ## Giai đoạn 6 — Dashboard (Streamlit)
 ```bash

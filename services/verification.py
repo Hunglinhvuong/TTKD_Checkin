@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import date, time
 
 from database.connection import get_conn
-from repositories import attendance as att_repo, audit, verification as repo
+from repositories import audit, verification as repo
 from services import punctuality
-from services.attendance import MAX_ATTEMPTS_PER_SESSION
+from services import attendance as attendance_service
 from services.timemark_verifier import VerificationOutcome
 
 log = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class Completion:
     resubmit_allowed: bool = False
     capture_date: date | None = None
     expected_date: date | None = None
+    checkin: attendance_service.CheckinCompletion | None = None
 
 
 def claim_next(worker_id: str) -> ClaimedJob | None:
@@ -72,9 +73,14 @@ def _fail_exhausted(conn, job: dict) -> None:
     repo.finish_job(conn, job["id"], "FAILED", msg)
     log_id = repo.insert_log(conn, rid, "AUTOMATION_ERROR")
     repo.finish_log(conn, log_id, status="AUTOMATION_ERROR", result_text=None, error=msg, parsed=None)
-    final = "PENDING_REVIEW" if record["final_status"] in ("RECEIVED", "PENDING_REVIEW") else record["final_status"]
-    repo.apply_final(conn, rid, verification_status="AUTOMATION_ERROR", final_status=final,
-                     photo_taken_at=None, flags=list(record["flags"]))
+    repo.save_ocr_result(
+        conn,
+        rid,
+        verification_status="AUTOMATION_ERROR",
+        photo_taken_at=None,
+        replace_capture_time=False,
+        flags=list(record["flags"]),
+    )
     audit.add(conn, action="VERIFICATION_EXHAUSTED", entity_type="attendance_records", entity_id=rid,
               actor_type="SYSTEM", new_value={"verification_status": "AUTOMATION_ERROR"})
 
@@ -98,8 +104,9 @@ def _clean(value: str | None) -> str | None:
 def complete(
     job: ClaimedJob,
     outcome: VerificationOutcome,
+    tz: str = "Asia/Ho_Chi_Minh",
 ) -> Completion:
-    """Ghi kết quả OCR; không chấm vị trí hoặc đúng giờ/muộn."""
+    """Ghi kết quả OCR; chỉ kiểm tra buổi, không chấm vị trí hoặc đúng giờ/muộn."""
     with get_conn() as conn:
         record = repo.get_record(conn, job.record_id, for_update=True)
 
@@ -111,37 +118,29 @@ def complete(
             return Completion("RETRY", "PENDING", None, "AUTOMATION_ERROR")
 
         ev = None
-        resubmit = None
-        flags = list(record["flags"])
+        flags = [flag for flag in record["flags"] if flag not in punctuality.EVAL_FLAGS]
         if outcome.status == "VERIFIED_AUTHENTIC":
-            ev = punctuality.evaluate()
-            flags = [f for f in flags if f not in punctuality.EVAL_FLAGS]
+            ev = punctuality.evaluate(
+                session=record["session"],
+                capture_time=outcome.capture_time,
+                tz=tz,
+            )
             flags += [f for f in ev.flags if f not in flags]
-            wanted = "PENDING_REVIEW" if flags else ev.final_status
-        elif outcome.status == "VERIFIED_FAKE":  # tương thích kết quả từ provider xác minh ảnh cũ
-            wanted = "REJECTED"
-        elif outcome.status == "UNABLE_TO_VERIFY" and outcome.reason == "NO_VALID_CODE":
-            wanted = "REJECTED"  # không có code hợp lệ: nhân viên cần gửi ảnh khác
-        else:  # NOT_FOUND, UNABLE_TO_VERIFY (mã lạ/hết lượt chờ), AUTOMATION_ERROR hết lượt, MANUAL_REVIEW
-            wanted = "PENDING_REVIEW"
-
-        if wanted == "REJECTED":
-            resubmit = att_repo.count_attempts(
-                conn, record["user_id"], record["attendance_date"], record["session"]
-            ) < MAX_ATTEMPTS_PER_SESSION
-
-        # Không đè quyết định đã chốt (VALID/LATE/REJECTED do admin hoặc lần xử lý trước)
-        can_override = record["final_status"] in ("RECEIVED", "PENDING_REVIEW")
-        final = wanted if can_override else record["final_status"]
-
-        repo.apply_final(
-            conn, job.record_id, verification_status=outcome.status, final_status=final,
-            photo_taken_at=outcome.capture_time if outcome.status == "VERIFIED_AUTHENTIC" else None,
+        replace_capture_time = outcome.status == "VERIFIED_AUTHENTIC"
+        repo.save_ocr_result(
+            conn,
+            job.record_id,
+            verification_status=outcome.status,
+            photo_taken_at=outcome.capture_time,
+            replace_capture_time=replace_capture_time,
             flags=flags,
-            punctuality_status=ev.punctuality if (ev and can_override) else None,
-            distance_km=ev.distance_km if (ev and can_override) else None,
-            resubmit_allowed=resubmit if (resubmit is not None and can_override) else None,
         )
+        updated_record = {
+            **record,
+            "verification_status": outcome.status,
+            "photo_taken_at": outcome.capture_time if replace_capture_time else record["photo_taken_at"],
+            "flags": flags,
+        }
         if job.photo:
             repo.update_photo_details(
                 conn, job.photo["id"], code=outcome.photo_code, lat=outcome.latitude, lon=outcome.longitude,
@@ -150,6 +149,8 @@ def complete(
         repo.finish_log(conn, job.log_id, status=outcome.status, result_text=outcome.result_text,
                         error=outcome.error, parsed=_parsed_json(outcome))
         repo.finish_job(conn, job.job_id, "FAILED" if outcome.status == "AUTOMATION_ERROR" else "DONE", outcome.error)
+        checkin = attendance_service.complete_checkin(conn, updated_record, tz)
+        final = checkin.final_status if checkin else record["final_status"]
         audit.add(
             conn, action="VERIFICATION_COMPLETED", entity_type="attendance_records", entity_id=job.record_id,
             actor_type="SYSTEM",
@@ -157,14 +158,15 @@ def complete(
             new_value={
                 "verification_status": outcome.status, "final_status": final, "flags": flags,
                 "reason": outcome.reason, "status_code": outcome.status_code,
-                **({"resubmit_allowed": resubmit} if resubmit is not None else {}),
                 **({"punctuality": ev.punctuality, "distance_km": ev.distance_km,
                     "deadline": ev.deadline.isoformat() if ev.deadline else None, "evaluation": ev.reason} if ev else {}),
             },
         )
         return Completion(
             "FINAL", outcome.status, final,
-            outcome.reason,
-            deadline=ev.deadline if ev else None, punctuality=ev.punctuality if ev else None,
-            resubmit_allowed=bool(resubmit and can_override),
+            checkin.reason if checkin else None,
+            deadline=ev.deadline if ev else None,
+            punctuality=ev.punctuality if ev else None,
+            resubmit_allowed=checkin.resubmit_allowed if checkin else False,
+            checkin=checkin,
         )

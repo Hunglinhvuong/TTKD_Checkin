@@ -61,18 +61,15 @@ def set_record_verification(conn: Connection, record_id: int, status: str) -> No
     conn.execute("UPDATE attendance_records SET verification_status = %s WHERE id = %s", (status, record_id))
 
 
-def apply_final(
-    conn: Connection, record_id: int, *, verification_status: str, final_status: str,
-    photo_taken_at: datetime | None, flags: list[str],
-    punctuality_status: str | None = None, distance_km: float | None = None, resubmit_allowed: bool | None = None,
+def save_ocr_result(
+    conn: Connection, record_id: int, *, verification_status: str, photo_taken_at: datetime | None,
+    replace_capture_time: bool, flags: list[str],
 ) -> None:
     conn.execute(
-        "UPDATE attendance_records SET verification_status = %s, final_status = %s, "
-        "photo_taken_at = COALESCE(%s, photo_taken_at), flags = %s, "
-        "punctuality_status = COALESCE(%s, punctuality_status), distance_km = COALESCE(%s, distance_km), "
-        "resubmit_allowed = COALESCE(%s, resubmit_allowed), processed_at = now() WHERE id = %s",
-        (verification_status, final_status, photo_taken_at, flags, punctuality_status, distance_km,
-         resubmit_allowed, record_id),
+        "UPDATE attendance_records SET verification_status = %s, "
+        "photo_taken_at = CASE WHEN %s THEN %s ELSE photo_taken_at END, "
+        "punctuality_status = 'NOT_EVALUATED', flags = %s WHERE id = %s",
+        (verification_status, replace_capture_time, photo_taken_at, flags, record_id),
     )
 
 

@@ -170,8 +170,6 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         f"{head}: {SESSION_LABEL[res.session]}, ngày {res.work_date:%d/%m/%Y}.\n"
         "Vui lòng nhập tên điểm bán."
     )
-    if res.flagged:
-        text += "\n⚠️ Ảnh cần admin kiểm tra."
     try:
         await msg.reply_text(
             text,

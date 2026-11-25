@@ -14,7 +14,7 @@ import psycopg
 
 from config.settings import ConfigError, Settings
 from database.connection import close_pool, init_pool
-from services import notifier, photo_storage, verification
+from services import attendance, notifier, photo_storage, verification
 from services.ocr_space_verifier import OCRSpaceVerifier
 from services.timemark_verifier import VerificationOutcome, Verifier
 
@@ -51,6 +51,20 @@ def process_job(job: verification.ClaimedJob, verifier: Verifier, settings: Sett
         return VerificationOutcome("AUTOMATION_ERROR", error=f"{type(exc).__name__}: {exc}"[:500])
 
 
+def _notify_checkin(settings: Settings, result: attendance.CheckinCompletion) -> None:
+    notifier.reply(
+        settings.bot_token,
+        result.telegram_chat_id,
+        result.telegram_message_id,
+        notifier.checkin_message(
+            result.final_status,
+            result.reason,
+            result.resubmit_allowed,
+            result.sales_point_name,
+        ),
+    )
+
+
 def run_worker(settings: Settings) -> int:
     settings.require("ocr_space_api_key")
     init_pool(settings)
@@ -71,6 +85,7 @@ def run_worker(settings: Settings) -> int:
         worker_id = f"{socket.gethostname()}:{os.getpid()}"
         cooldown_until = 0.0
         next_local_cleanup = 0.0
+        next_checkin_sweep = 0.0
         log.info("Worker %s bắt đầu", worker_id)
 
         with OCRSpaceVerifier(
@@ -93,24 +108,23 @@ def run_worker(settings: Settings) -> int:
                     stop.wait(10)
                     continue
                 try:
+                    if time.monotonic() >= next_checkin_sweep:
+                        for completed in attendance.complete_pending_checkins(settings.timezone):
+                            _notify_checkin(settings, completed)
+                        next_checkin_sweep = time.monotonic() + 10
                     job = verification.claim_next(worker_id)
                     if job is None:
                         stop.wait(POLL_S)
                         continue
                     outcome = process_job(job, verifier, settings)
-                    comp = verification.complete(job, outcome)
+                    comp = verification.complete(job, outcome, settings.timezone)
                     log.info("Bản ghi %s: %s (lượt %d/%d, %s)", job.record_id, outcome.status, job.attempts,
                              job.max_attempts, comp.kind)
                     if comp.kind == "FINAL":
                         if job.photo:
                             photo_storage.cleanup_temp_if_done(job.photo["id"])
-                        notifier.reply(
-                            settings.bot_token, job.record["telegram_chat_id"], job.record["telegram_message_id"],
-                            notifier.message_for(
-                                comp.verification_status, comp.final_status, comp.reason, comp.deadline,
-                                comp.resubmit_allowed, comp.capture_date, comp.expected_date,
-                            ),
-                        )
+                        if comp.checkin:
+                            _notify_checkin(settings, comp.checkin)
                     if outcome.blocked:
                         cooldown_until = time.time() + BLOCK_COOLDOWN_S
                         log.error("OCR provider chặn/yêu cầu CAPTCHA: tạm dừng %d phút, các ảnh chuyển xác minh thủ công",

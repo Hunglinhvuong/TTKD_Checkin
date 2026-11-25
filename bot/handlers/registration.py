@@ -10,7 +10,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
-from services import attendance, registration
+from services import attendance, notifier, registration
 
 log = logging.getLogger(__name__)
 HTML = ParseMode.HTML
@@ -77,15 +77,28 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg, u, chat = update.effective_message, update.effective_user, update.effective_chat
     if not (msg and msg.text and u and chat) or u.is_bot:
         return
-    point_name = await asyncio.to_thread(attendance.submit_sales_point_name, u.id, chat.id, msg.text)
+    point_name = await asyncio.to_thread(
+        attendance.submit_sales_point_name,
+        u.id,
+        chat.id,
+        msg.text,
+        context.bot_data["settings"].timezone,
+    )
     if point_name.kind == "INVALID":
         await msg.reply_text(
             "Tên điểm bán không được để trống và tối đa 200 ký tự. Vui lòng nhập lại.",
             reply_markup=ForceReply(selective=True, input_field_placeholder="Tên điểm bán"),
         )
         return
-    if point_name.kind == "SAVED":
-        await msg.reply_text("✅ Đã ghi nhận tên điểm bán.")
+    if point_name.kind == "COMPLETED" and point_name.completion:
+        await msg.reply_text(notifier.checkin_message(
+            point_name.completion.final_status,
+            point_name.completion.reason,
+            point_name.completion.resubmit_allowed,
+            point_name.completion.sales_point_name,
+        ))
+        return
+    if point_name.kind in ("COMPLETED", "WAITING"):
         return
     if point_name.kind == "NOT_FOUND":
         await msg.reply_text("Không tìm thấy lượt điểm danh cần cập nhật. Vui lòng gửi lại ảnh điểm danh.")
