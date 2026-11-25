@@ -108,6 +108,33 @@ def attendance_rows(
     )
 
 
+def sales_point_map_rows(
+    d1: date, d2: date, sessions: tuple = (), user_ids: tuple = (), limit: int = 5000
+) -> list[dict]:
+    where = [
+        "r.attendance_date BETWEEN %s AND %s",
+        "r.superseded_at IS NULL",
+        "p.latitude IS NOT NULL",
+        "p.longitude IS NOT NULL",
+    ]
+    params = [d1, d2]
+    if sessions:
+        where.append("r.session = ANY(%s)")
+        params.append(list(sessions))
+    if user_ids:
+        where.append("r.user_id = ANY(%s)")
+        params.append(list(user_ids))
+    params.append(limit)
+    return _read(
+        "SELECT r.id, r.attendance_date, r.session, u.full_name, r.sales_point_name, "
+        "p.latitude, p.longitude, r.final_status "
+        "FROM attendance_records r JOIN users u ON u.id = r.user_id "
+        "JOIN attendance_photos p ON p.attendance_record_id = r.id WHERE " + " AND ".join(where) +
+        " ORDER BY r.attendance_date DESC, r.id DESC LIMIT %s",
+        params,
+    )
+
+
 def attendance_statistics(d1: date, d2: date, tz: str) -> list[dict]:
     """Thống kê các buổi làm việc dự kiến và kết quả điểm danh theo nhân viên."""
     _, end = _day_bounds(d2, d2, tz)

@@ -11,7 +11,7 @@ st.set_page_config(page_title="Điểm danh Telegram", page_icon="🗓️", layo
 from dashboard import auth, common  # noqa: E402
 from dashboard.runtime import apply_streamlit_secrets  # noqa: E402
 from dashboard.views import (  # noqa: E402
-    admins_view, attendance, audit_view, calendar_view, employees, overview, photos, verification,
+    admins_view, attendance, audit_view, calendar_view, employees, overview, photos, sales_map, verification,
 )
 
 apply_streamlit_secrets(st.secrets)
@@ -21,6 +21,7 @@ auth.sidebar()
 pages = [
     st.Page(overview.render, title="Tổng quan", icon="📊", url_path="tong-quan", default=True),
     st.Page(attendance.render, title="Điểm danh", icon="✅", url_path="diem-danh"),
+    st.Page(sales_map.render, title="Bản đồ điểm bán", icon="📍", url_path="ban-do-diem-ban"),
     st.Page(verification.render, title="Xác minh ảnh", icon="🔍", url_path="xac-minh-anh"),
     st.Page(employees.render, title="Nhân viên", icon="👥", url_path="nhan-vien"),
     st.Page(calendar_view.render, title="Lịch làm việc", icon="📅", url_path="lich-lam-viec"),
