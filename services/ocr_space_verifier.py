@@ -21,6 +21,8 @@ API_URL = "https://api.ocr.space/parse/image"
 _DATE_DMY_RE = re.compile(r"(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?!\d)")
 _DATE_ISO_RE = re.compile(r"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)")
 _TIME_RE = re.compile(r"(?<!\d)(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\s*(AM|PM)?(?!\w)", re.I)
+_CHECKIN_RE = re.compile(r"\bcheck[\s-]*in\b", re.I)
+_CHECKIN_TIME_PROXIMITY = 32
 _GPS_RE = re.compile(
     r"(?<![\d/])(-?\d{1,3}(?:\.\s*\d+)?)\s*[,;]\s*(-?\d{1,3}(?:\.\s*\d+)?)(?!\d)"
 )
@@ -62,8 +64,15 @@ def parse_ocr_text(text: str, timezone_name: str = "Asia/Ho_Chi_Minh") -> Parsed
         except ValueError:
             continue
 
+    checkin_matches = list(_CHECKIN_RE.finditer(text))
     time_values: set[time] = set()
     for match in _TIME_RE.finditer(text):
+        if not any(
+            min(abs(match.start() - checkin.end()), abs(checkin.start() - match.end()))
+            <= _CHECKIN_TIME_PROXIMITY
+            for checkin in checkin_matches
+        ):
+            continue
         hour, minute = int(match.group(1)), int(match.group(2))
         second = int(match.group(3) or 0)
         meridian = (match.group(4) or "").upper()
